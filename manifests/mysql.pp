@@ -1,17 +1,32 @@
 class db::mysql (
   $root_password,
   $databases = {},  
-  $port = 3306
+  $port = 3306,
+  $backup = false,
+  $backup_user = 'backup',
+  $backup_password = 'secretpassword',
+  $backup_dir = '/var/backup',
 ) {
-  class { '::mysql': }
-  class { 'mysql::server':
-    config_hash => { 'root_password' => $root_password, 'bind_address' => '0.0.0.0', 'port' => $port }
+  if !defined(Class['::mysql::server']) {
+    class { '::mysql::server':
+      root_password => $root_password, 
+      override_options => { 
+        mysqld => {
+          'bind_address' => '0.0.0.0', 'port' => $port 
+        }
+      }
+    }
   }
 
   create_resources('mysql::db', $databases)
-  mysql::db { $db_name:
-    user     => $db_user,
-    password => $db_password,
+
+  if $backup {
+    class {'mysql::server::backup':
+      backupuser => $backup_user,
+      backuppassword => $backup_password,
+      backupdir => $backup_dir,
+      backupdatabases => keys($databases),
+    }
   }
 
   firewall { '100 allow MySQL database access':
